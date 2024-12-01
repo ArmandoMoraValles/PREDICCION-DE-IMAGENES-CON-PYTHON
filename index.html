@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modelo TensorFlow.js</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      width: 300px;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    #preview {
+      width: 100%;
+      height: auto; /* Maintains aspect ratio */
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      margin-top: 20px;
+    }
+
+    input[type="file"] {
+      margin-top: 20px;
+    }
+
+    #result {
+      margin-top: 20px;
+      font-size: 16px;
+      color: #5a5a5a;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Modelo TensorFlow.js</h1>
+    <p>Sube una imagen para predecir:</p>
+    <input type="file" id="imageInput" accept="image/*">
+    <canvas id="preview" width="28" height="28"></canvas>
+    <p id="result">Resultados aparecerán aquí...</p>
+  </div>
+
+  <script>
+    let model;
+    const classNames = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat', 'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot'];
+
+    async function loadModel() {
+      document.getElementById('result').innerText = "Cargando modelo...";
+      try {
+        model = await tf.loadLayersModel('http://localhost:8000/model/model.json');
+        document.getElementById('result').innerText = "Modelo cargado.";
+      } catch (error) {
+        document.getElementById('result').innerText = "Error al cargar el modelo: " + error;
+      }
+    }
+
+    async function preprocessImage(file) {
+      const img = document.createElement('img');
+      const canvas = document.getElementById('preview');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 28;
+      canvas.height = 28;
+
+      return new Promise((resolve) => {
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const tensor = tf.browser.fromPixels(imageData, 1)
+            .toFloat()
+            .div(255.0)
+            .reshape([1, 28, 28, 1]);
+          resolve(tensor);
+        };
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    document.getElementById('imageInput').addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+      document.getElementById('result').innerText = "Procesando...";
+
+      const tensor = await preprocessImage(file);
+      const prediction = model.predict(tensor);
+      prediction.array().then(predictionArray => {
+        const maxIndex = predictionArray[0].indexOf(Math.max(...predictionArray[0]));
+        const predictedClass = classNames[maxIndex];
+        document.getElementById('result').innerText = `Predicción: ${predictedClass}`;
+      }).catch(error => {
+        document.getElementById('result').innerText = "Error al procesar la predicción: " + error;
+      });
+    });
+
+    loadModel();
+  </script>
+</body>
+</html>
